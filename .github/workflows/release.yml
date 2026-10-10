@@ -1,0 +1,46 @@
+# Push a tag like v0.1.1 and this builds the Foundry release:
+#   module.json with version, url, manifest and download filled in from the repo
+#   vtm-v20-xp.zip with the module files at the zip root
+# Foundry manifest URL to paste into "Install Module":
+#   https://github.com/<owner>/<repo>/releases/latest/download/module.json
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run tests
+        run: node --test test/logic.test.mjs test/integration.test.mjs
+
+      - name: Stamp module.json
+        env:
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="${TAG#v}"
+          jq --arg v "$VERSION" \
+             --arg url "https://github.com/$REPO" \
+             --arg manifest "https://github.com/$REPO/releases/latest/download/module.json" \
+             --arg download "https://github.com/$REPO/releases/download/$TAG/vtm-v20-xp.zip" \
+             '.version=$v | .url=$url | .manifest=$manifest | .download=$download' \
+             module.json > module.tmp && mv module.tmp module.json
+
+      - name: Build zip
+        run: zip -r vtm-v20-xp.zip module.json README.md scripts styles
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            module.json
+            vtm-v20-xp.zip
+          generate_release_notes: true

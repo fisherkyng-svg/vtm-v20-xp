@@ -1,0 +1,39 @@
+/* VtM V20 XP Tracker */
+.vxp-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.vxp-bar button {
+  flex: 1 1 auto;
+  min-height: 32px;
+  font-size: 14px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.vxp-hint { flex-basis: 100%; }
+input.vxp-readonly { opacity: 0.75; cursor: not-allowed; }
+
+.vxp-form { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.vxp-form label { display: flex; flex-direction: column; gap: 3px; }
+.vxp-form label.vxp-check { flex-direction: row; align-items: center; gap: 6px; }
+.vxp-form label.vxp-row { flex-direction: row; justify-content: space-between; align-items: center; gap: 8px; }
+.vxp-form label.vxp-row select { max-width: 60%; }
+.vxp-form select, .vxp-form input[type="text"], .vxp-form input[type="number"] { min-height: 30px; font-size: 14px; }
+.vxp-form fieldset { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; }
+.vxp-sub { opacity: 0.7; font-size: 12px; }
+.vxp-xp { font-size: 15px; margin: 0; }
+.vxp-ok { color: #3a7d44; margin: 0; }
+.vxp-warn { color: #b5502b; margin: 0; }
+
+.vxp-ledger { max-height: 70vh; overflow-y: auto; }
+.vxp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.vxp-table th, .vxp-table td { padding: 3px 5px; border-bottom: 1px solid rgba(127, 127, 127, 0.25); text-align: left; vertical-align: top; }
+.vxp-num { text-align: right !important; white-space: nowrap; }
+.vxp-undone td { text-decoration: line-through; opacity: 0.55; }
+.vxp-gm summary { cursor: pointer; font-weight: bold; padding: 4px 0; }
+
+.vxp-card h3 { margin: 0 0 4px; font-size: 15px; }
+.vxp-card p { margin: 2px 0; }
