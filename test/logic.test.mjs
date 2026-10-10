@@ -144,3 +144,82 @@ test('audit: clean ledger has no drift; manual edits show up', () => {
   const dirty = audit(baseline, log, { xp: { current: 12, total: 20 }, traits: { 'system.attributes.strength': 4, 'discipline|celerity': 1 } });
   assert.equal(dirty.drift.length, 2);
 });
+
+import { ELDER_TYPE, expectedFromLedger } from '../scripts/logic.mjs';
+
+const elderState = () => {
+  const s = baseVamp();
+  s.traitMax = 6; // 7th generation
+  s.xp.current = 100;
+  s.items = [
+    { id: 'dom', type: 'discipline', name: 'Dominate', level: 5 },
+    { id: 'pot', type: 'discipline', name: 'Potence', level: 6 },
+  ];
+  s.catalog.elders = [
+    { name: 'Mass Mesmerize', discipline: 'Dominate', level: 6, uuid: 'w.mm' },
+    { name: 'Far Mastery', discipline: 'Dominate', level: 6, uuid: 'w.fm' },
+    { name: 'Speak Through the Blood', discipline: 'Dominate', level: 7, uuid: 'w.sb' },
+    { name: 'Flick', discipline: 'Potence', level: 6, uuid: 'w.fl' },
+  ];
+  s.elderEnabled = true;
+  return s;
+};
+
+test('Elder: dot 6 is one option per level-6 power, at the normal dot cost', () => {
+  const o = buildOptions(elderState());
+  const mm = find(o, 'discipline|dominate#mass mesmerize');
+  assert.equal(mm.cost, 25);                       // in-clan 5 x5
+  assert.equal(mm.auditKey, 'discipline|dominate');
+  assert.deepEqual(mm.alsoCreate, { uuid: 'w.mm', itemType: ELDER_TYPE, key: 'elder|mass mesmerize', name: 'Mass Mesmerize', to: 6 });
+  assert.ok(find(o, 'discipline|dominate#far mastery'));
+  assert.equal(find(o, 'discipline|dominate#speak through the blood'), undefined); // level 7
+  assert.equal(o.filter(x => x.group === 'New Elder Powers' && x.name.includes('Dominate')).length, 0); // not at 6 yet
+});
+
+test('Elder: extra power at an owned level costs that dot again (out-of-clan 35)', () => {
+  const o = buildOptions(elderState());
+  const flick = find(o, 'elder|flick');
+  assert.equal(flick.cost, 35);                    // Potence out-of-clan 5 x7
+  assert.equal(flick.to, 6);
+  assert.equal(flick.op.itemType, ELDER_TYPE);
+});
+
+test('Elder: owned powers drop out; next dot offers the next level; in-clan extra = 25', () => {
+  const s = elderState();
+  s.traitMax = 7; // 6th generation
+  s.items[0].level = 6;
+  s.items.push({ id: 'e1', type: ELDER_TYPE, name: 'Mass Mesmerize', level: 6, discipline: 'Dominate' });
+  const o = buildOptions(s);
+  assert.equal(find(o, 'elder|mass mesmerize'), undefined);
+  assert.equal(find(o, 'elder|far mastery').cost, 25);
+  const sb = find(o, 'discipline|dominate#speak through the blood');
+  assert.equal(sb.cost, 30);                       // 6 x5
+  assert.equal(sb.blocked, null);
+});
+
+test('Elder: generation cap, empty library, and the Storyteller-only switch', () => {
+  const s = elderState();
+  s.traitMax = 5;
+  assert.match(find(buildOptions(s), 'discipline|dominate').blocked, /max 5/);
+  const s2 = elderState(); s2.catalog.elders = [];
+  assert.match(find(buildOptions(s2), 'discipline|dominate').blocked, /no level 6 Dominate powers/);
+  const s3 = elderState(); s3.elderEnabled = false;
+  assert.match(find(buildOptions(s3), 'discipline|dominate').blocked, /Storyteller only/);
+  assert.match(find(buildOptions(s3), 'elder|flick').blocked, /Storyteller only/);
+});
+
+test('Elder: dot 6 at max cap shows max, not a power list', () => {
+  const s = elderState();
+  s.items[0].level = 6;
+  const o = buildOptions(s);
+  assert.match(find(o, 'discipline|dominate').blocked, /max 6/);
+});
+
+test('audit follows Elder purchases', () => {
+  const baseline = { ts: 1, xp: { current: 50, total: 50 }, traits: { 'discipline|dominate': 5 } };
+  const log = [{ kind: 'spend', ts: 2, cost: 25, key: 'discipline|dominate', to: 6, alsoCreated: { key: 'elder|mass mesmerize', to: 6 } }];
+  const exp = expectedFromLedger(baseline, log);
+  assert.equal(exp.traits['discipline|dominate'], 6);
+  assert.equal(exp.traits['elder|mass mesmerize'], 6);
+  assert.equal(exp.xp.current, 25);
+});

@@ -42,7 +42,7 @@ jobs:
 
       - name: Run tests
         if: steps.check.outputs.exists == 'false'
-        run: node --test test/logic.test.mjs test/integration.test.mjs
+        run: node --test test/*.test.mjs
 
       - name: Stamp module.json
         if: steps.check.outputs.exists == 'false'

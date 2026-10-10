@@ -2,7 +2,7 @@
   "id": "vtm-v20-xp",
   "title": "VtM V20 XP Tracker",
   "description": "Award, spend, and audit experience for the Vampire: The Masquerade V20 system. V20 costs with in-clan/out-of-clan Disciplines, secondary paths, a per-character ledger, and locked sheets after character creation.",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "authors": [{ "name": "CD" }],
   "compatibility": { "minimum": "13", "verified": "14" },
   "relationships": {

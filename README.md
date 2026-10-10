@@ -1,4 +1,4 @@
-# VtM V20 XP Tracker (`vtm-v20-xp`) v0.1.1
+# VtM V20 XP Tracker (`vtm-v20-xp`) v0.2.0
 
 Award, spend, and audit experience for the **Vampire: The Masquerade V20** Foundry system (`vtm-v20` ≥ 1.1.5, Foundry v13–14).
 
@@ -45,6 +45,16 @@ If you unlock a sheet, edit it, and lock it again, the module asks whether to ac
 - **Overrides:** the Storyteller can override in-clan status per Discipline (for example, the Additional Discipline merit) and choose the primary path under **Ledger → Storyteller: cost overrides**.
 - **Catalog:** new Disciplines and Paths come from world Items plus the system compendiums. World items take precedence.
 - **Rituals** are Storyteller-granted. Players can't add them to a locked sheet, and the audit ignores them, so a granted ritual never shows as drift. Buying the first dot of Thaumaturgy posts a reminder to add the primary path and the free Level One ritual.
+
+### Elder Disciplines (needs VtM V20 Powers)
+
+This feature is off by default. Turn on **Players can buy Elder Discipline levels** in the module settings.
+
+- **Dot 6+.** Each purchase includes **one power of the new level**, chosen from the Storyteller's Elder Power library (world items). The Spend list shows one entry per available power, e.g. *Dominate 5 → 6 + Mass Mesmerize · 25 XP*. If the library has no power at that level, the dot is blocked.
+- **Extra powers.** Additional powers at a level already reached appear under **New Elder Powers**, at the same cost as buying that dot again. For in-clan Dominate at level 6, that's 25 XP.
+- **Generation.** Generation caps still apply. Dot 6 needs 7th generation or lower.
+- **Locked sheets.** Players can't drag Elder powers onto locked sheets.
+- **Audit and undo.** The audit tracks Elder powers. Undo removes the power along with the dot.
 
 ### Undo
 

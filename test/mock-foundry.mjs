@@ -119,7 +119,7 @@ export function install({ worldItems = [], actors = [], pack = [] } = {}) {
   for (const w of worldItemDocs) registerUuid(w.uuid, w);
   const packDocs = pack.map(d => new MockItem(d));
   for (const p of packDocs) registerUuid(`Compendium.vtm-v20.${p.type}s.${p.id}`, p);
-  const settings = { 'vtm-v20-xp.ritualMult': 2, 'vtm-v20-xp.chatMode': 'public' };
+  const settings = { 'vtm-v20-xp.chatMode': 'public', 'vtm-v20-xp.elderPurchases': false };
   const moduleObj = {};
   globalThis.Hooks = Hooks;
   globalThis.CONFIG = {
@@ -157,5 +157,5 @@ export function install({ worldItems = [], actors = [], pack = [] } = {}) {
     settings: { register() {}, get: (m, k) => settings[`${m}.${k}`], set: (m, k, v) => { settings[`${m}.${k}`] = v; } },
     modules: { get: () => moduleObj },
   };
-  return { gmUser, player, actors: actorDocs, moduleObj, as(user) { game.user = user; } };
+  return { gmUser, player, actors: actorDocs, moduleObj, settings, as(user) { game.user = user; } };
 }

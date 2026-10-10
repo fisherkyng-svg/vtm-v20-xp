@@ -33,8 +33,11 @@ export const GUARDED_ACTOR_KEYS = [
   'system.humanity', 'system.pathName', 'system.willpower.max',
   'system.generation', 'system.clan',
 ];
-export const GUARDED_ITEM_TYPES = ['discipline', 'path', 'ritual', 'background', 'merit'];
-export const GUARDED_ITEM_KEYS = ['name', 'system.level', 'system.rating', 'system.cost', 'system.category', 'system.ritualType'];
+// Elder Power items come from the vtm-v20-powers module (Foundry namespaces the subtype)
+export const ELDER_TYPE = 'vtm-v20-powers.elderPower';
+export const ELDER_MIN = 6;
+export const GUARDED_ITEM_TYPES = ['discipline', 'path', 'ritual', 'background', 'merit', ELDER_TYPE];
+export const GUARDED_ITEM_KEYS = ['name', 'system.level', 'system.rating', 'system.cost', 'system.category', 'system.ritualType', 'system.discipline'];
 
 const lc = s => String(s ?? '').trim().toLowerCase();
 
@@ -139,11 +142,13 @@ export function buildOptions(state) {
   if (!isVampire) return opts;
 
   const items = state.items || [];
-  const owned = new Set(items.map(i => itemKey(i.type, i.name)));
+  const owned = new Set(items.map(i => itemKey(i.type === ELDER_TYPE ? 'elder' : i.type, i.name)));
   const primaries = primaryPaths(state);
   const discLevel = name => items.find(i => i.type === 'discipline' && lc(i.name) === lc(name))?.level ?? 0;
 
   // Disciplines already known
+  const elderLib = state.catalog?.elders || [];
+  const clsName = cls => (cls === 'clan' ? 'clan' : cls === 'caitiff' ? 'Caitiff' : 'out-of-clan');
   for (const d of items.filter(i => i.type === 'discipline')) {
     const cls = disciplineClass(state, d.name);
     const extras = [];
@@ -151,11 +156,36 @@ export function buildOptions(state) {
     const cat = Object.entries(DISC_FOR_CATEGORY).find(([, disc]) => disc === lc(d.name))?.[0];
     const prim = cat && primaries[cat];
     if (prim && prim.level < d.level + 1) extras.push({ itemId: prim.id, key: itemKey('path', prim.name), name: prim.name, from: prim.level, to: d.level + 1 });
-    push({ key: itemKey('discipline', d.name), group: 'Disciplines',
-      name: `${d.name} (${cls === 'clan' ? 'clan' : cls === 'caitiff' ? 'Caitiff' : 'out-of-clan'})`,
-      from: d.level, to: d.level + 1, cost: disciplineRaiseCost(state, d.name, d.level),
-      blocked: d.level >= max ? `max ${max}` : null,
-      op: { kind: 'itemLevel', itemId: d.id }, extras });
+    const base = { group: 'Disciplines', from: d.level, to: d.level + 1, cost: disciplineRaiseCost(state, d.name, d.level),
+      auditKey: itemKey('discipline', d.name), op: { kind: 'itemLevel', itemId: d.id }, extras };
+    const label = `${d.name} (${clsName(cls)})`;
+    if (d.level >= max) { push({ ...base, key: itemKey('discipline', d.name), name: label, blocked: `max ${max}` }); continue; }
+    if (d.level + 1 < ELDER_MIN) { push({ ...base, key: itemKey('discipline', d.name), name: label, blocked: null }); continue; }
+
+    // Elder dot: the purchase includes choosing one power of the new level
+    if (!state.elderEnabled) { push({ ...base, key: itemKey('discipline', d.name), name: label, blocked: 'Elder levels: Storyteller only' }); continue; }
+    const choices = elderLib.filter(c => lc(c.discipline) === lc(d.name) && Number(c.level) === d.level + 1
+      && !owned.has(itemKey('elder', c.name)));
+    if (!choices.length) {
+      push({ ...base, key: itemKey('discipline', d.name), name: label, blocked: `no level ${d.level + 1} ${d.name} powers in the Storyteller's list` });
+      continue;
+    }
+    for (const c of choices) {
+      push({ ...base, key: `${itemKey('discipline', d.name)}#${lc(c.name)}`, name: `${label} + ${c.name}`, blocked: null,
+        alsoCreate: { uuid: c.uuid, itemType: ELDER_TYPE, key: itemKey('elder', c.name), name: c.name, to: Number(c.level) } });
+    }
+  }
+
+  // Additional Elder powers at a level already reached: same cost as buying that dot again
+  for (const c of elderLib) {
+    if (owned.has(itemKey('elder', c.name))) continue;
+    const d = items.find(i => i.type === 'discipline' && lc(i.name) === lc(c.discipline));
+    const lvl = Number(c.level) || ELDER_MIN;
+    if (!d || d.level < lvl) continue;
+    push({ key: itemKey('elder', c.name), group: 'New Elder Powers', name: `${c.name} (${d.name} ${lvl}, ${clsName(disciplineClass(state, d.name))})`,
+      from: 0, to: lvl, cost: disciplineRaiseCost(state, d.name, lvl - 1),
+      blocked: state.elderEnabled ? null : 'Elder powers: Storyteller only',
+      op: { kind: 'create', uuid: c.uuid, itemType: ELDER_TYPE, level: null } });
   }
 
   // New Disciplines
@@ -267,6 +297,7 @@ export function expectedFromLedger(baseline, log) {
       current -= e.cost;
       traits[e.key] = e.to;
       for (const x of e.extras || []) if (x.key) traits[x.key] = x.to;
+      if (e.alsoCreated?.key) traits[e.alsoCreated.key] = e.alsoCreated.to;
     }
   }
   return { xp: { current, total }, traits };

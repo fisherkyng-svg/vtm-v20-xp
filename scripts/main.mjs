@@ -1,7 +1,7 @@
 import {
   MODULE_ID, buildOptions, stripGuarded, isGuardedActorKey, GUARDED_ITEM_TYPES,
   GUARDED_ITEM_KEYS, itemKey, audit, describeKey, primaryPaths, disciplineClass,
-  DISC_FOR_CATEGORY, flatten,
+  DISC_FOR_CATEGORY, flatten, ELDER_TYPE,
 } from './logic.mjs';
 
 const SYSTEM_ID = 'vtm-v20';
@@ -49,9 +49,9 @@ function actorFields(actor) {
 
 function actorItems(actor) {
   return actor.items
-    .filter(i => ['discipline', 'path', 'ritual'].includes(i.type))
+    .filter(i => ['discipline', 'path', 'ritual', ELDER_TYPE].includes(i.type))
     .map(i => ({ id: i.id, type: i.type, name: i.name, level: Number(i.system.level) || 0,
-      category: i.system.category, ritualType: i.system.ritualType }));
+      category: i.system.category, ritualType: i.system.ritualType, discipline: i.system.discipline }));
 }
 
 function stateFor(actor, catalog) {
@@ -69,7 +69,8 @@ function stateFor(actor, catalog) {
     clanDisciplines: actor.type === 'vampire' ? clanDisciplines(src.clan) : [],
     overrides: flag(actor, 'overrides') ?? {},
     primaryOverride: flag(actor, 'primaryOverride') ?? {},
-    catalog: catalog ?? { disciplines: [], paths: [] },
+    catalog: catalog ?? { disciplines: [], paths: [], elders: [] },
+    elderEnabled: game.settings.get(MODULE_ID, 'elderPurchases'),
   };
 }
 
@@ -79,6 +80,7 @@ function currentTraits(actor) {
   const traits = { ...actorFields(actor) };
   for (const i of actor.items) {
     if (['discipline', 'path'].includes(i.type)) traits[itemKey(i.type, i.name)] = Number(i.system.level) || 0;
+    else if (i.type === ELDER_TYPE) traits[itemKey('elder', i.name)] = Number(i.system.level) || 0;
     else if (i.type === 'background') traits[itemKey(i.type, i.name)] = Number(i.system.rating) || 0;
     else if (i.type === 'merit') traits[itemKey(i.type, i.name)] = Number(i.system.cost) || 0;
   }
@@ -87,7 +89,7 @@ function currentTraits(actor) {
 
 // World items first (Daimoinon, house content), then the system compendiums
 async function buildCatalog() {
-  const cat = { disciplines: [], paths: [] };
+  const cat = { disciplines: [], paths: [], elders: [] };
   const seen = new Set();
   const add = (type, e) => {
     const k = itemKey(type, e.name);
@@ -107,6 +109,11 @@ async function buildCatalog() {
       if (e.type !== type) continue;
       add(type, { name: e.name, uuid: e.uuid, level: e.system?.level, category: e.system?.category, ritualType: e.system?.ritualType });
     }
+  }
+  // The Storyteller's Elder Power library: world items of the powers module's type
+  for (const i of game.items) {
+    if (i.type !== ELDER_TYPE) continue;
+    cat.elders.push({ name: i.name, uuid: i.uuid, level: Number(i.system.level) || 6, discipline: i.system.discipline });
   }
   for (const list of Object.values(cat)) list.sort((a, b) => a.name.localeCompare(b.name));
   return cat;
@@ -175,7 +182,7 @@ async function spend(actor, key, note = '') {
 
   const xp = xpOf(actor);
   const entry = {
-    ...entryBase('spend'), key: opt.key, label: opt.name, from: opt.from, to: opt.to, cost: opt.cost, note,
+    ...entryBase('spend'), key: opt.auditKey ?? opt.key, label: opt.name, from: opt.from, to: opt.to, cost: opt.cost, note,
     op: { kind: opt.op.kind, path: opt.op.path ?? null, itemId: opt.op.itemId ?? null, created: false },
     extras: [],
   };
@@ -197,6 +204,18 @@ async function spend(actor, key, note = '') {
     await actor.items.get(x.itemId)?.update({ 'system.level': x.to }, { [OPT]: true });
     entry.extras.push({ itemId: x.itemId, key: x.key, name: x.name, from: x.from, to: x.to });
   }
+  // Elder dot: the chosen power comes with it
+  if (opt.alsoCreate) {
+    const src = await fromUuid(opt.alsoCreate.uuid);
+    if (src) {
+      const data = src.toObject();
+      for (const k of ['_id', 'folder', 'sort', 'ownership', '_stats']) delete data[k];
+      const [doc] = await actor.createEmbeddedDocuments('Item', [data], { [OPT]: true });
+      entry.alsoCreated = { itemId: doc.id, key: opt.alsoCreate.key, name: opt.alsoCreate.name, to: opt.alsoCreate.to };
+    } else {
+      ui.notifications.warn(`${opt.alsoCreate.name} could not be loaded; the Storyteller will need to add it.`);
+    }
+  }
 
   const update = {
     'system.experience.current': xp.current - opt.cost,
@@ -206,6 +225,7 @@ async function spend(actor, key, note = '') {
   await actor.update(update, { [OPT]: true });
 
   let extra = entry.extras.map(x => `<br>${esc(x.name)} ${x.from} → ${x.to} (primary path)`).join('');
+  if (entry.alsoCreated) extra += `<br>Learned Elder power: <b>${esc(entry.alsoCreated.name)}</b>`;
   // First dot of blood magic: the ST supplies the primary path, and Thaumaturgy brings a free Level One ritual
   if (opt.from === 0 && opt.key === itemKey('discipline', 'thaumaturgy')) {
     extra += '<br><b>Storyteller:</b> add the primary path and one Level One ritual (free).';
@@ -241,6 +261,9 @@ async function undoLast(actor) {
       update[e.op.path] = e.from;
     }
     for (const x of e.extras ?? []) await actor.items.get(x.itemId)?.update({ 'system.level': x.from }, { [OPT]: true });
+    if (e.alsoCreated?.itemId && actor.items.get(e.alsoCreated.itemId)) {
+      await actor.deleteEmbeddedDocuments('Item', [e.alsoCreated.itemId], { [OPT]: true });
+    }
   }
   log[idx] = { ...e, undone: true, undoneBy: game.user.name, undoneAt: Date.now() };
   update[`flags.${MODULE_ID}.log`] = log;
@@ -557,6 +580,11 @@ function preDeleteItem(item, options) {
 // Registration
 
 Hooks.once('init', () => {
+  game.settings.register(MODULE_ID, 'elderPurchases', {
+    name: 'Players can buy Elder Discipline levels',
+    hint: 'Discipline dots 6+ and extra Elder powers (requires the VtM V20 Powers module). Off: only the Storyteller adds them.',
+    scope: 'world', config: true, type: Boolean, default: false,
+  });
   game.settings.register(MODULE_ID, 'chatMode', {
     name: 'XP chat cards',
     hint: 'Who sees the chat card for each award, purchase, and undo.',
