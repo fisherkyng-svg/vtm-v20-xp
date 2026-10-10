@@ -4,9 +4,9 @@ Award, spend, and audit experience for the **Vampire: The Masquerade V20** Found
 
 ## Install
 
-1. Copy the `vtm-v20-xp` folder into your Foundry `Data/modules/` directory. On the VPS this is usually `~/foundrydata/Data/modules/`.
-2. Restart Foundry, or return to Setup and relaunch the world.
-3. Go to **Game Settings → Manage Modules** and enable **VtM V20 XP Tracker**.
+1. In Foundry Setup, go to **Add-on Modules → Install Module** and paste this into **Manifest URL**:
+   `https://github.com/fisherkyng-svg/vtm-v20-xp/releases/latest/download/module.json`
+2. Launch the world, then go to **Game Settings → Manage Modules** and enable **VtM V20 XP Tracker**.
 
 ## How it works
 
@@ -78,10 +78,4 @@ node --test test/logic.test.mjs test/integration.test.mjs
 
 ## Releasing
 
-Bump `version` in `module.json`, commit, then tag and push:
-
-```
-git tag v0.1.2 && git push origin v0.1.2
-```
-
-The Release workflow runs the tests, stamps the manifest and download URLs, and publishes `module.json` and `vtm-v20-xp.zip`. Foundry picks up the new version under **Manage Modules → Check for Updates**.
+Bump `version` in `module.json` and push to `main`. The Release workflow runs the tests, tags `v<version>`, stamps the manifest and download URLs, and publishes `module.json` plus `vtm-v20-xp.zip`. Pushing the same version twice does nothing. Foundry picks up new versions under **Manage Modules → Check for Updates**.

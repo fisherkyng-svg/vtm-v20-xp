@@ -12,7 +12,7 @@
   },
   "esmodules": ["scripts/main.mjs"],
   "styles": ["styles/xp.css"],
-  "url": "",
+  "url": "https://github.com/fisherkyng-svg/vtm-v20-xp",
   "manifest": "",
   "download": ""
 }
